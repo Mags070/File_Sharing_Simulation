@@ -1,5 +1,6 @@
 #include<iostream>
 #include "utils/Logger.hpp"
+#include "crypto/Hash.hpp"
 #include "utils/ProgressBar.hpp"
 #include <thread>
 #include<chrono>
@@ -17,6 +18,10 @@ int main(int argc,char **argv){
         this_thread::sleep_for(chrono::milliseconds(20));
     }
     bar.finish();
+
+    string test="hello world";
+    string hashed=Hash::sha256(test);
+    cout<<hashed<<endl;
    /* cout<<"Simulator Initialised"<<endl;
     cout<<"Usage"<<endl;
     cout << "peershare receive <port>\n";
