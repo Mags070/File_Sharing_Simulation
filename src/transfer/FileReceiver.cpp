@@ -6,10 +6,12 @@
     #define NOGDI
     #include <winsock2.h>
     #include <Ws2tcpip.h>
+    #include <direct.h> // For _mkdir on Windows
     #pragma comment(lib, "ws2_32.lib")
 #else
-    #include <arpa/inet.h>
+    #include <arpa/inet.h->
     #include <unistd.h>
+    #include <sys/stat.h> // For mkdir on POSIX
 #endif
 
 #include "FileReceiver.hpp"
@@ -21,16 +23,34 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
+
+// Function to create the 'received' directory
+void create_received_directory() {
+    #ifdef _WIN32
+        // _mkdir attempts to create the directory. If it fails, it might
+        // be because the directory already exists, which is fine.
+        _mkdir("received"); 
+    #else
+        // 0777 sets permissions (read/write/execute for all)
+        mkdir("received", 0777); 
+    #endif
+}
 
 FileReceiver::FileReceiver(int port)
     : port(port) {}
 
 void FileReceiver::start() {
+    // --- 1. Create the target directory ---
+    create_received_directory(); 
+    // --------------------------------------
 
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);
 #endif
+
+// ... (omitting socket setup and header parsing, which are unchanged)
 
     int server = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -78,12 +98,20 @@ void FileReceiver::start() {
             break;
     }
 
+    // --- CRITICAL FIX: TRIM TRAILING WHITESPACE/CONTROL CHARACTERS ---
+    size_t last_char = filename.find_last_not_of(" \r\n\t");
+    if (last_char != std::string::npos) {
+        filename.erase(last_char + 1);
+    } else {
+        filename.clear();
+    }
+    // ------------------------------------------------------------------
+
     // --- FILE NAME CLEANUP: Extract just the filename from the full path ---
-    // Looks for the last path separator (both Windows '\' and Unix '/')
     size_t last_slash = filename.find_last_of("/\\");
     std::string base_filename = (last_slash == std::string::npos) 
-                                ? filename 
-                                : filename.substr(last_slash + 1);
+                                 ? filename 
+                                 : filename.substr(last_slash + 1);
     // ----------------------------------------------------------------------
 
     Logger::info("Expected SHA256: " + expectedHash);
@@ -92,7 +120,9 @@ void FileReceiver::start() {
     // -------------------------------
     // PREPARE OUTPUT FILE
     // -------------------------------
-    std::string outName = "received_" + base_filename; // Use clean name for output file
+    // --- 2. Prepend the directory path ---
+    std::string outName = "received/received_" + base_filename; 
+    // -------------------------------------
     std::ofstream out(outName, std::ios::binary);
 
     size_t totalChunks = (fileSize + chunkSize - 1) / chunkSize;
@@ -129,7 +159,7 @@ void FileReceiver::start() {
     // COMPARE HASHES
     // -------------------------------
     if (expectedHash == actualHash) {
-        Logger::success("HASH MATCH ✓ File integrity verified.");
+        Logger::success("HASH MATCH ✓ File integrity verified. Saved to 'received' folder.");
     } else {
         Logger::error("HASH MISMATCH ✗ File corrupted. Deleting...");
         remove(outName.c_str());

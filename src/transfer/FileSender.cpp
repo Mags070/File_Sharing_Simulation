@@ -61,32 +61,42 @@ bool FileSender::sendFile(const std::string& filepath) {
     std::string hash = Hash::sha256_file(filepath);
     Logger::info("File SHA256: " + hash);
 
-    // ---------- SEND HASH FIRST ----------
-    std::string hashHeader = "HASH:" + hash + "\n";
-    send(sock, hashHeader.c_str(), hashHeader.size(), 0);
-
-    // ---------- SEND EXISTING HEADER ----------
+    // ---------- SEND COMBINED HEADER (FIXED) ----------
     std::string header =
-        "FILE:" + filepath + "\n" +
+        "HASH:" + hash + "\n" +           // Send HASH first
+        "FILE:" + filepath + "\n" +       // Send file path
         "SIZE:" + std::to_string(size) + "\n" +
-        "CHUNK:" + std::to_string(CHUNK) + "\nEND\n";
+        "CHUNK:" + std::to_string(CHUNK) + "\n" +
+        "END\n";                          // Termination flag
 
-    send(sock, header.c_str(), header.size(), 0);
+    // CRITICAL FIX: Send all header information in ONE system call
+    send(sock, header.c_str(), header.size(), 0); 
+    // ----------------------------------------------------------
 
     Logger::info("Sending file...");
 
-    // ---------- SEND FILE DATA IN CHUNKS ----------
+    // ---------- SEND FILE DATA IN CHUNKS (ROBUST LOOP) ----------
     std::vector<char> buffer(CHUNK);
     Progress bar(totalChunks);
 
     size_t index = 0;
 
-    while (file) {
+    // Use while(true) for maximum robustness
+    while (true) {
         file.read(buffer.data(), CHUNK);
         size_t readBytes = file.gcount();
-        if (readBytes == 0) break;
+        
+        // Break only when 0 bytes were read, ensuring the last partial chunk is sent.
+        if (readBytes == 0) break; 
 
-        send(sock, buffer.data(), readBytes, 0);
+        // CRITICAL: send only 'readBytes' bytes
+        ssize_t n = send(sock, buffer.data(), readBytes, 0); 
+        
+        if (n < 0) {
+            Logger::error("Network send error. Aborting transfer.");
+            break; 
+        }
+
         bar.update(index++);
     }
 
