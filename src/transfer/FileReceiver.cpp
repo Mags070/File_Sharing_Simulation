@@ -4,7 +4,6 @@
     #endif
     #define NOMINMAX
     #define NOGDI
-
     #include <winsock2.h>
     #include <Ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")
@@ -12,21 +11,16 @@
     #include <arpa/inet.h>
     #include <unistd.h>
 #endif
+
 #include "FileReceiver.hpp"
 #include "../utils/Logger.hpp"
 #include "../utils/ProgressBar.hpp"
 #include "../utils/Config.hpp"
+#include "../crypto/Hash.hpp"
 
 #include <fstream>
 #include <sstream>
 #include <vector>
-#ifdef _WIN32
-    #include <winsock2.h>
-    #pragma comment(lib, "ws2_32.lib")
-#else
-    #include <arpa/inet.h>
-    #include <unistd.h>
-#endif
 
 FileReceiver::FileReceiver(int port)
     : port(port) {}
@@ -51,50 +45,87 @@ void FileReceiver::start() {
     Logger::info("Waiting for sender...");
 
     int client = accept(server, nullptr, nullptr);
-
     Logger::success("Sender connected.");
 
-    // receive header
-    char headerBuf[1024];
-    recv(client, headerBuf, sizeof(headerBuf), 0);
+    // -------------------------------
+    // READ FULL HEADER (including HASH)
+    // -------------------------------
+    char headerBuf[2048];
+    int headerLen = recv(client, headerBuf, sizeof(headerBuf), 0);
+    std::string headers(headerBuf, headerLen);
+    std::stringstream ss(headers);
 
-    std::stringstream ss(headerBuf);
-
+    std::string line;
     std::string filename;
+    std::string expectedHash;
     size_t fileSize = 0;
     size_t chunkSize = 0;
 
-    std::string line;
     while (getline(ss, line)) {
-        if (line.rfind("FILE:", 0) == 0)
+        if (line.rfind("HASH:", 0) == 0)
+            expectedHash = line.substr(5);
+
+        else if (line.rfind("FILE:", 0) == 0)
             filename = line.substr(5);
+
         else if (line.rfind("SIZE:", 0) == 0)
             fileSize = stoull(line.substr(5));
+
         else if (line.rfind("CHUNK:", 0) == 0)
             chunkSize = stoull(line.substr(6));
+
         else if (line == "END")
             break;
     }
 
-    Logger::info("Receiving: " + filename);
-    std::ofstream out("received_" + filename, std::ios::binary);
+    Logger::info("Expected SHA256: " + expectedHash);
+    Logger::info("Receiving file: " + filename);
+
+    // -------------------------------
+    // PREPARE OUTPUT FILE
+    // -------------------------------
+    std::string outName = "received_" + filename;
+    std::ofstream out(outName, std::ios::binary);
 
     size_t totalChunks = (fileSize + chunkSize - 1) / chunkSize;
     Progress bar(totalChunks);
 
     std::vector<char> buffer(chunkSize);
+    size_t received = 0;
     size_t index = 0;
 
-    while (index < totalChunks) {
+    // -------------------------------
+    // RECEIVE THE FILE DATA
+    // -------------------------------
+    while (received < fileSize) {
         ssize_t n = recv(client, buffer.data(), chunkSize, 0);
         if (n <= 0) break;
 
         out.write(buffer.data(), n);
+        received += n;
         bar.update(index++);
     }
 
+    out.close();
     bar.finish();
-    Logger::success("File saved as: received_" + filename);
+
+    Logger::info("File received. Verifying SHA256...");
+
+    // -------------------------------
+    // COMPUTE HASH OF RECEIVED FILE
+    // -------------------------------
+    std::string actualHash = Hash::sha256_file(outName);
+    Logger::info("Actual SHA256: " + actualHash);
+
+    // -------------------------------
+    // COMPARE HASHES
+    // -------------------------------
+    if (expectedHash == actualHash) {
+        Logger::success("HASH MATCH ✓ File integrity verified.");
+    } else {
+        Logger::error("HASH MISMATCH ✗ File corrupted. Deleting...");
+        remove(outName.c_str());
+    }
 
 #ifdef _WIN32
     closesocket(server);
