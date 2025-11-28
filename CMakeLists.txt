@@ -7,4 +7,8 @@ file(GLOB SOURCES "src/*.cpp" "src/**/*.cpp")
 
 add_executable(peershare_simulator ${SOURCES})
 
+if (WIN32)
+	target_link_libraries(peershare_simulator PRIVATE ws2_32)
+endif()
+
 

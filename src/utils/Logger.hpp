@@ -1,13 +1,12 @@
 #pragma once
 
-#include<string>
-using namespace std;
+#include <string>
 
 class Logger{
     public:
-    static void info(const string &msg);
-    static void success(const string &msg);
-    static void error(const string &msg);
-    static void warning(const string &msg);
+    static void info(const std::string &msg);
+    static void success(const std::string &msg);
+    static void error(const std::string &msg);
+    static void warning(const std::string &msg);
 
 };

@@ -1,9 +1,9 @@
-#include<vector>
-#include<string>
+#include <vector>
+#include <string>
 #pragma once
-using namespace std;
+
 struct PeerInfo{
-    string ip;
+    std::string ip;
     int port;
 };
 
@@ -12,6 +12,6 @@ class DiscoveryClient{
         int port;
     public:
         DiscoveryClient(int port=7777);
-        vector<PeerInfo>discover();
+        std::vector<PeerInfo> discover();
 
 };
