@@ -78,13 +78,21 @@ void FileReceiver::start() {
             break;
     }
 
+    // --- FILE NAME CLEANUP: Extract just the filename from the full path ---
+    // Looks for the last path separator (both Windows '\' and Unix '/')
+    size_t last_slash = filename.find_last_of("/\\");
+    std::string base_filename = (last_slash == std::string::npos) 
+                                ? filename 
+                                : filename.substr(last_slash + 1);
+    // ----------------------------------------------------------------------
+
     Logger::info("Expected SHA256: " + expectedHash);
-    Logger::info("Receiving file: " + filename);
+    Logger::info("Receiving file: " + base_filename); // Display clean name
 
     // -------------------------------
     // PREPARE OUTPUT FILE
     // -------------------------------
-    std::string outName = "received_" + filename;
+    std::string outName = "received_" + base_filename; // Use clean name for output file
     std::ofstream out(outName, std::ios::binary);
 
     size_t totalChunks = (fileSize + chunkSize - 1) / chunkSize;

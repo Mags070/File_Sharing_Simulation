@@ -1,12 +1,11 @@
 #pragma once
-#include<iostream>
-#include<string>
-#include<vector>
-using namespace std;
+#include <iostream>
+#include <string>
+#include <vector>
 
 class Hash{
     public:
-    static string sha256(const vector<unsigned char>&data);
-    static string sha256(const string &data);
-    static string sha256_file(const string &filepath);
+    static std::string sha256(const std::vector<unsigned char>& data);
+    static std::string sha256(const std::string &data);
+    static std::string sha256_file(const std::string &filepath);
 };

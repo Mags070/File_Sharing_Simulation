@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-
+#include "utils/Config.hpp"
 #include "utils/Logger.hpp"
 #include "discovery/DiscoveryClient.hpp"
 #include "discovery/DiscoveryServer.hpp"
@@ -14,8 +14,8 @@ int main(int argc, char** argv) {
     if (argc < 2) {
         Logger::info("PeerShare-Lite Commands:");
         Logger::info("  peershare discover");
-        Logger::info("  peershare listen <port>");
-        Logger::info("  peershare send <file> <ip> <port>");
+        Logger::info("  peershare listen");
+        Logger::info("  peershare send <file> <ip> ");
         return 0;
     }
 
@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
     // DISCOVER PEERS (UDP broadcast)
     // -----------------------------
     if (command == "discover") {
-        DiscoveryClient dc(7777);
+        DiscoveryClient dc(Config::DISCOVERY_PORT);
         auto peers = dc.discover();
 
         if (peers.empty()) {
@@ -41,13 +41,9 @@ int main(int argc, char** argv) {
     // LISTEN (RECEIVE FILE)
     // -----------------------------
     if (command == "listen") {
-        if (argc < 3) {
-            Logger::error("Usage: peershare listen <port>");
-            return 0;
-        }
-        int port = stoi(argv[2]);
+    
 
-        FileReceiver receiver(port);
+        FileReceiver receiver(Config::FILE_TRANSFER_PORT);
         receiver.start();
         return 0;
     }
@@ -56,14 +52,14 @@ int main(int argc, char** argv) {
     // SEND FILE
     // -----------------------------
     if (command == "send") {
-        if (argc < 5) {
-            Logger::error("Usage: peershare send <file> <ip> <port>");
+        if (argc < 4) {
+            Logger::error("Usage: peershare send <file> <ip>");
             return 0;
         }
 
         string file = argv[2];
         string ip   = argv[3];
-        int port    = stoi(argv[4]);
+        int port    = Config::FILE_TRANSFER_PORT;
 
         FileSender sender(ip, port);
         sender.sendFile(file);

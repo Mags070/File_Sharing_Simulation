@@ -16,7 +16,7 @@ void Progress::update(size_t current){
             }
         }
          int precent=(int)(progress*100.0f);
-        cout<<"]"<<"Percent :"<<precent<<"%\r";
+        cout<<"]"<<"Percent :"<<"Percent"<<100<<"%";
         cout.flush();
         
 }

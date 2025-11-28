@@ -1,10 +1,10 @@
 #pragma once
 #include <vector>
 #include <cstdint>
-#include<string>
-using namespace std;
+#include <string>
+
 struct Chunk {
     std::vector<uint8_t> data;
     uint32_t index;
-    string hash;
+    std::string hash;
 };
