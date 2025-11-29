@@ -41,68 +41,45 @@ bool FileSender::sendFile(const std::string& filepath) {
     }
 
     Logger::success("Connected!");
-
-    // ---------- OPEN FILE ----------
     std::ifstream file(filepath, std::ios::binary);
     if (!file) {
         Logger::error("File not found.");
         return false;
     }
 
-    // ---------- GET FILE SIZE ----------
     file.seekg(0, std::ios::end);
     size_t size = file.tellg();
     file.seekg(0);
 
     const size_t CHUNK = Config::CHUNK_SIZE;
     size_t totalChunks = (size + CHUNK - 1) / CHUNK;
-
-    // ---------- COMPUTE SHA-256 BEFORE SENDING ----------
     std::string hash = Hash::sha256_file(filepath);
     Logger::info("File SHA256: " + hash);
-
-    // ---------- SEND COMBINED HEADER (FIXED) ----------
     std::string header =
-        "HASH:" + hash + "\n" +           // Send HASH first
-        "FILE:" + filepath + "\n" +       // Send file path
+        "HASH:" + hash + "\n" +           
+        "FILE:" + filepath + "\n" +       
         "SIZE:" + std::to_string(size) + "\n" +
         "CHUNK:" + std::to_string(CHUNK) + "\n" +
-        "END\n";                          // Termination flag
-
-    // CRITICAL FIX: Send all header information in ONE system call
+        "END\n";                         
     send(sock, header.c_str(), header.size(), 0); 
-    // ----------------------------------------------------------
-
-    Logger::info("Sending file...");
-
-    // ---------- SEND FILE DATA IN CHUNKS (ROBUST LOOP) ----------
+    Logger::info("Sending file");
     std::vector<char> buffer(CHUNK);
     Progress bar(totalChunks);
 
     size_t index = 0;
-
-    // Use while(true) for maximum robustness
     while (true) {
         file.read(buffer.data(), CHUNK);
         size_t readBytes = file.gcount();
-        
-        // Break only when 0 bytes were read, ensuring the last partial chunk is sent.
         if (readBytes == 0) break; 
-
-        // CRITICAL: send only 'readBytes' bytes
         ssize_t n = send(sock, buffer.data(), readBytes, 0); 
-        
         if (n < 0) {
             Logger::error("Network send error. Aborting transfer.");
             break; 
         }
-
         bar.update(index++);
     }
-
     bar.finish();
-    Logger::success("File sent successfully.");
-
+    Logger::success("File sent successfully");
 #ifdef _WIN32
     closesocket(sock);
     WSACleanup();
